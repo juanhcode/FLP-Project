@@ -166,7 +166,7 @@
   (sllgen:make-string-scanner lexica gramatica))
 
 
-
+;Funcion que esta en el interpretador
 (define evaluar-programa
   (lambda(pgm)
     (cases programa pgm
@@ -179,8 +179,17 @@
     )
   )
 )
+;;Representación de ambientes
+
+(define scheme-value?
+  (lambda(x)#t))
+
+(define void-value?
+  (lambda (v) (set! v v))
+)
 
 
+;Funcion que evalua una expresion de la gramatica
 (define eval-expression
   (lambda(exp)
     (cases expresion exp
@@ -190,13 +199,13 @@
       (num-exp (numero-exp) (eval-num-exp numero-exp))
       (cadena-exp (id a) (list id a))
       (decl-exp (var-decl) (eval-var-decl var-decl))
-      ;(lista-exp (expresion) (list (eval-expression expresion)))
-      ;(cons-exp (exp1 exp2) (list (eval-expression exp1) (eval-expression exp2)))
-      ;(empty-list-exp () '())
-      ;(array-exp (expresion) (list (eval-expression expresion)))
+      (lista-exp (listExp) (eval-rands listExp))
+      (cons-exp (exp1 exp2) (list (eval-expression exp1) (eval-expression exp2)))
+      (empty-list-exp () '())
+      (array-exp (expresion) (list (eval-expression expresion)))
       (prim-num-exp (exp1 prim exp2) (eval-primitiva-num exp1 prim exp2))
-      ;(prim-bool-exp (prim exp) (eval-primitiva-bool prim exp))
-      ;(prim-list-exp (exp f) (eval-primitiva-list exp))
+      (prim-bool-exp (prim listExp) (eval-primitiva-bool prim listExp))
+      ;(prim-list-exp (primList exp) (eval-primitiva-list primList exp))
       ;(prim-array-exp (exp a) (eval-primitiva-array exp))
       ;(prim-cad-exp (exp a) (eval-primitiva-cadena exp))
       ;(if-exp (exp1 exp2 exp3) (eval-if-exp exp1 exp2 exp3))
@@ -215,284 +224,33 @@
     )
   )
 )
-
-(define eval-primitiva-num
-  (lambda (exp1 prim exp2)
-    (eval-primitive prim (list (eval-expression exp1) (eval-expression exp2)))
-  )
-)
-
-(define eval-primitive
-  (lambda (prim args)
-    (cases primitiva prim
-      (sum-prim () (baseSuma args +))
-      (minus-prim () (baseResta args -))
-      (mult-prim () (baseMult args *))
-      (mod-prim () (operation (cdr args) % (car args)))
-      ;(elevar-prim () (operation (cdr args) ^ (car args)))
-      ;(menor-prim () (< (car args) (cadr args)))
-      ;(mayor-prim () (> (car args) (cadr args)))
-      ;(menorigual-prim () (<= (car args) (cadr args)))
-      ;(mayorigual-prim () (>= (car args) (cadr args)))
-      ;(diferente-prim () (!= (car args) (cadr args)))
-      ;(igual-prim () (== (car args) (cadr args)))
-      (else 0)
+;bool-exp --> funcion que evalua una expresion booleana y retorna su valor
+(define eval-bool-expresion
+  (lambda(exp)
+    (cases bool-expresion exp
+      (true-exp () #t)
+      (false-exp () #f)
     )
   )
 )
-;(operation args + 0)
-
-(define baseMult
-  (lambda (args prim)
-    (cond
-    [(and (number? (car args)) (number? (cadr args))) (operation args prim 1)] ;Numeros y flotantes
-    [(contiene-caracter? (car args) #\b) (multBinario args)] ;Binarios
-    ;[(contiene-caracter? (car args) #\h) (multHex args)] ;Hexadecimales
-    ;[(contiene-caracter? (car args) #\x) (multOctal args)] ;Octales
-    [else eopl:error "Error en la multiplicacion"]
+;********************************************************************************************************************
+;num-exp --> funcion que evalua una expresion numerica y retorna su valor
+(define eval-num-exp
+  (lambda (num)
+    (cases numero-exp num
+      (decimal-num (digitoDecimal) digitoDecimal)
+      (octal-num (digito0ctal) digito0ctal)
+      (bin-num (digitoBinario) digitoBinario)
+      (hex-num (digitoHexadecimal) digitoHexadecimal)
+      (float-num (flotante) flotante)
     )
   )
 )
-
-(define multBinario
-  (lambda (lst)
-    (let
-      (
-        (primerParteNumerica (cadr ((splitString (car lst)) 1)))
-        (segundaParteNumerica (cadr ((splitString (cadr lst)) 1)))
-        (multiplicar (lambda (k z) (string-append "b"(aux-multiplicar-binaria k z))))
-      )
-      (multiplicar primerParteNumerica segundaParteNumerica)
-    )   
-  )
-)
-
-(define aux-multiplicar-binaria
-  (lambda (bin1 bin2)
-    (let* ([num1 (string->number bin1 2)]
-           [num2 (string->number bin2 2)]
-           [multiplicacion (* num1 num2)]
-           [max-length (max (string-length bin1) (string-length bin2))]
-           [result (number->string multiplicacion 2)]
-           [result-length (string-length result)])
-      (if (< result-length max-length)
-          (string-append (make-string (- max-length result-length) #\0) result)
-          result))))
-
-(define baseSuma
-  (lambda (args prim)
-    (cond
-    [(and (number? (car args)) (number? (cadr args))) (operation args prim 0)] ;Numeros y flotantes
-    [(contiene-caracter? (car args) #\b) (sumBinario args)] ;Binarios
-    [(contiene-caracter? (car args) #\h) (sumhex args)] ;Hexadecimales
-    [(contiene-caracter? (car args) #\x) (sumOctal args)] ;Octales
-    [else eopl:error "Error en la suma"]
-    )
-  )
-)
-
-(define baseResta
-  (lambda (args prim)
-    (cond
-    [(and (number? (car args)) (number? (cadr args))) (operation args prim 0)] ;Numeros y flotantes
-    [(contiene-caracter? (car args) #\b) (resBinario args)] ;Binarios
-    [(contiene-caracter? (car args) #\h) (reshex args)] ;Hexadecimales
-    [(contiene-caracter? (car args) #\x) (resOctal args)] ;Octales
-    [else eopl:error "Error en la resta"]
-    )
-  )
-)
-
-(define resOctal
-  (lambda (lst)
-    (let
-      (
-        (primerParteNumerica (cadr ((splitString (car lst)) 2)))
-        (segundaParteNumerica (cadr ((splitString (cadr lst)) 2)))
-        (restar (lambda (k z) (string-append "0x"(aux-resta-octal k z))))
-      )
-      (restar primerParteNumerica segundaParteNumerica)
-    )   
-  )
-)
-(define aux-resta-octal
-  (lambda (oct1 oct2)
-    (let* ([num1 (string->number oct1 8)]
-           [num2 (string->number oct2 8)]
-           [resta (- num1 num2)]
-           [max-length (max (string-length oct1) (string-length oct2))]
-           [result (number->string resta 8)]
-           [result-length (string-length result)])
-      (if (< result-length max-length)
-          (string-append (make-string (- max-length result-length) #\0) result)
-          result))))
-
-(define resBinario
-  (lambda (lst)
-    (let
-      (
-        (primerParteNumerica (cadr ((splitString (car lst)) 1)))
-        (segundaParteNumerica (cadr ((splitString (cadr lst)) 1)))
-        (restar (lambda (k z) (string-append "b"(aux-resta-binaria k z))))
-      )
-      (restar primerParteNumerica segundaParteNumerica)
-    )   
-  )
-)
-
-(define reshex
-  (lambda (lst)
-    (let
-      (
-        (primerParteNumerica (cadr ((splitString (car lst)) 2)))
-        (segundaParteNumerica (cadr ((splitString (cadr lst)) 2)))
-        (restar (lambda (k z) (string-append "hx"(aus-resta-hex k z))))
-      )
-      (restar primerParteNumerica segundaParteNumerica)
-    )   
-  )
-)
-
-(define aus-resta-hex
-  (lambda (hex1 hex2)
-    (let* ([num1 (string->number hex1 16)]
-           [num2 (string->number hex2 16)]
-           [resta (- num1 num2)]
-           [max-length (max (string-length hex1) (string-length hex2))]
-           [result (number->string resta 16)]
-           [result-length (string-length result)])
-      (if (< result-length max-length)
-          (string-append (make-string (- max-length result-length) #\0) result)
-          result))))
-
-(define aux-resta-binaria
-  (lambda (bin1 bin2)
-    (let* ([num1 (string->number bin1 2)]
-           [num2 (string->number bin2 2)]
-           [resta (- num1 num2)]
-           [max-length (max (string-length bin1) (string-length bin2))]
-           [result (number->string resta 2)]
-           [result-length (string-length result)])
-      (if (< result-length max-length)
-          (string-append (make-string (- max-length result-length) #\0) result)
-          result))))
-
-(define sumhex
-  (lambda (lst)
-    (let
-      (
-        (primerParteNumerica (cadr ((splitString (car lst)) 2)))
-        (segundaParteNumerica (cadr ((splitString (cadr lst)) 2)))
-        (sumar (lambda (k z) (string-append "hx"(aux-suma-hex k z))))
-      )
-      (sumar primerParteNumerica segundaParteNumerica)
-    )   
-  )
-)
-
-(define aux-suma-hex
-  (lambda (hex1 hex2)
-    (let* ([num1 (string->number hex1 16)]
-           [num2 (string->number hex2 16)]
-           [suma (+ num1 num2)]
-           [max-length (max (string-length hex1) (string-length hex2))]
-           [result (number->string suma 16)]
-           [result-length (string-length result)])
-      (if (< result-length max-length)
-          (string-append (make-string (- max-length result-length) #\0) result)
-          result))))
-
-(define sumOctal
-  (lambda (lst)
-    (let
-      (
-        (primerParteNumerica (cadr ((splitString (car lst)) 2)))
-        (segundaParteNumerica (cadr ((splitString (cadr lst)) 2)))
-        (sumar (lambda (k z) (string-append "0x"(aux-suma-octal k z))))
-      )
-      (sumar primerParteNumerica segundaParteNumerica)
-      ;(list primerParteNumerica segundaParteNumerica)
-    )   
-  )
-)
-(define aux-suma-octal
-  (lambda (oct1 oct2)
-    (let* ([num1 (string->number oct1 8)]
-           [num2 (string->number oct2 8)]
-           [suma (+ num1 num2)]
-           [max-length (max (string-length oct1) (string-length oct2))]
-           [result (number->string suma 8)]
-           [result-length (string-length result)])
-      (if (< result-length max-length)
-          (string-append (make-string (- max-length result-length) #\0) result)
-          result))))
-
-(define sumBinario
-  (lambda (lst)
-    (let
-      (
-        (primerParteNumerica (cadr ((splitString (car lst)) 1)))
-        (segundaParteNumerica (cadr ((splitString (cadr lst)) 1)))
-        (sumar (lambda (k z) (string-append "b"(aux-suma-binaria k z))))
-      )
-      (sumar primerParteNumerica segundaParteNumerica)
-    )   
-  )
-)
-
-(define (contiene-caracter? cadena caracter)
-  (let (
-        [longitud (string-length cadena)]
-       )
-    (let loop (
-               [index 0]
-              )
-      (cond
-        [(= index longitud) #f] ; Hemos llegado al final de la cadena sin encontrar el carácter
-        [(char=? (string-ref cadena index) caracter) #t] ; Hemos encontrado el carácter
-        [else (loop (+ index 1))])))) ; Continuamos buscando en el siguiente índice
+;********************************************************************************************************************
+;cadena-exp --> funcion que evalua una expresion de cadena y retorna su valor
 
 
-
-
-(define (aux-suma-binaria bin1 bin2)
-  (let* ([num1 (string->number bin1 2)]
-         [num2 (string->number bin2 2)]
-         [suma (+ num1 num2)]
-         [max-length (max (string-length bin1) (string-length bin2))]
-         [result (number->string suma 2)]
-         [result-length (string-length result)])
-    (if (< result-length max-length)
-        (string-append (make-string (- max-length result-length) #\0) result)
-        result)))
-
-(define splitString
-  (lambda (str)
-    (lambda (pos)
-      (list (substring str 0 pos) (substring str pos (string-length str)))
-    )
-  )
-)
-
-; haz una funcion que recibe un string y recibe un parametro con la posicion del string y parte el string en dos partes
-; y retorna una lista con las dos partes
-(define string
-  (lambda (str)
-    (lambda (pos)
-      (list (substring str 0 pos) (substring str pos (string-length str)))
-    )
-  )
-)
-
-
-(define operation
-  (lambda (lst f acc)
-    (cond
-      [(null? lst) acc]
-      [else
-        (operation (cdr lst) f (f acc (car lst) ))])))
-
-
+;decl-exp --> funcion que evalua una expresion de declaracion y retorna su valor
 (define eval-var-decl
   (lambda (var)
     (cases var-decl var
@@ -520,20 +278,260 @@
 (define eval-rand
   (lambda (rand )
     (eval-expression rand)))
+;********************************************************************************************************************
 
+;Primitiva Numerica
+;prim-num-exp --> funcion que evalua una primitiva numerica y retorna su valor
 
-(define eval-num-exp
-  (lambda (num)
-    (cases numero-exp num
-      (decimal-num (digitoDecimal) digitoDecimal)
-      (octal-num (digito0ctal) digito0ctal)
-      (bin-num (digitoBinario) digitoBinario)
-      (hex-num (digitoHexadecimal) digitoHexadecimal)
-      (float-num (flotante) flotante)
+(define eval-primitiva-num
+  (lambda (exp1 prim exp2)
+    (eval-primitive prim (eval-expression exp1) (eval-expression exp2))
+  )
+)
+;(baseSuma args +)
+(define eval-primitive
+  (lambda (prim exp1 exp2)
+    (cases primitiva prim
+      (sum-prim () (operacionesBase exp1 exp2 +))
+      (minus-prim () (operacionesBase exp1 exp2 - ))
+      (mult-prim () (operacionesBase exp1 exp2 *))
+      (mod-prim () (operacionModulo exp1 exp2))
+      (elevar-prim () (operacionesBase exp1 exp2 expt))
+      (menor-prim () (operacionBooleana exp1 exp2 <))
+      (mayor-prim () (operacionBooleana exp1 exp2 >) )
+      (menorigual-prim () (operacionBooleana exp1 exp2 <=))
+      (mayorigual-prim () (operacionBooleana exp1 exp2 >=))
+      (diferente-prim () (operacionDiferente exp1 exp2) )
+      (igual-prim () (operacionBooleana exp1 exp2 = ))
     )
   )
 )
-;0x213345
+
+;contiene-caracter? --> funcion que recibe una cadena y un caracter y retorna si la cadena contiene el caracter
+(define contiene-caracter?
+  (lambda (cadena caracter)
+    (let
+      (
+        [longitud (string-length cadena)]
+      )
+      (let loop
+        ([index 0])
+        (cond
+          [(= index longitud) #f] ; final de la cadena sin encontrar el carácter
+          [(char=? (string-ref cadena index) caracter) #t] ; encontrado el carácter
+          [else (loop (+ index 1))] ; Buscar en el siguiente índice
+        )
+      )
+    )
+  )
+)
+;splitString --> funcion que recibe un string y recibe un parametro con la posicion del string y parte el string en dos partes
+(define splitString
+  (lambda (str)
+    (lambda (pos)
+      (list (substring str 0 pos) (substring str pos (string-length str)))
+    )
+  )
+)
+
+(define operacionesBase
+  (lambda (exp1 exp2 prim)
+    (cond
+      [(and (number? exp1) (number? exp2)) (prim exp1 exp2)] ;Numeros y flotantes
+      [(contiene-caracter? exp1 #\b) (operation exp1 exp2 1 "b" 2 prim)] ;Binarios
+      [(contiene-caracter? exp1 #\h) (operation exp1 exp2 2 "hx" 16 prim)] ;Hexadecimales
+      [(contiene-caracter? exp1 #\x) (operation exp1 exp2 2 "0x" 8 prim)] ;Octales
+      [else eopl:error "Error en la operación"]
+    )
+  )
+)
+(define operation
+  (lambda (exp1 exp2 index complemento base operador)
+    (let
+      (
+        (expresion1 (cadr((splitString exp1) index)))
+        (expresion2 (cadr((splitString exp2) index)))
+        (sumar (lambda (k z) (string-append complemento (aux-operation k z base operador))))
+      )
+      (sumar expresion1 expresion2)
+    )
+  )
+)
+
+(define (aux-operation operando1 operando2 base operador)
+  (let*
+    (
+      [num1 (string->number operando1 base)]
+      [num2 (string->number operando2 base)]
+      [operacion (operador num1 num2)]
+      [max-length (max (string-length operando1) (string-length operando2))]
+      [result (number->string operacion base)]
+      [result-length (string-length result)]
+    )
+    (if (< result-length max-length) (string-append (make-string (- max-length result-length) #\0) result) result)
+  )
+)
+
+;Modulo
+;Saca modulo de flotantes con desborde 0.01
+(define modulo-flotante
+  (lambda (a b) (- a (* b (floor (/ a b)))))
+)
+
+(define operacionModulo
+  (lambda (exp1 exp2)
+    (cond
+    [(and (number? exp1) (number? exp2)) (modulo-flotante exp1 exp2)] ;Numeros y flotantes
+    [(contiene-caracter? exp1 #\b) (operation exp1 exp2 1 "b" 2 modulo)] ;Binarios
+    [(contiene-caracter? exp1 #\h) (operation exp1 exp2 2 "hx" 16 modulo)] ;Hexadecimales
+    [(contiene-caracter? exp1 #\x) (operation exp1 exp2 2 "0x" 8 modulo)] ;Octales
+    [else eopl:error "Error en el modulo"]
+    )
+  )
+)
+
+
+(define operacionBooleana
+  (lambda (exp1 exp2 operando)
+    (cond
+    [(and (number? exp1) (number? exp2)) (operando exp1 exp2)] ;Numeros y flotantes
+    [(contiene-caracter? exp1 #\b) (comparar (list exp1 exp2) 1 2 operando) ] ;Binarios
+    [(contiene-caracter? exp1 #\h) (comparar (list exp1 exp2) 2 16 operando) ] ;Hexadecimales
+    [(contiene-caracter? exp1 #\x) (comparar (list exp1 exp2) 2 8 operando) ] ;Hexadecimales
+    [else eopl:error "Error en la operacion logica"]
+    )
+  )
+)
+
+(define convertir-base
+  (lambda (n base)
+    (string->number n base)
+  )
+)
+
+;args = (b100 b10)
+;index posicion de la cadena
+;base del numero
+(define comparar
+  (lambda (args index base operando)
+    (let
+      (
+        (primerParteNumerica (convertir-base (cadr ((splitString (car args)) index)) base))
+        (segundaParteNumerica (convertir-base (cadr ((splitString (cadr args)) index)) base))
+        (resultado (lambda (k z)
+          (if
+            (operando k z) #true #false
+          ))
+        )
+      )
+      (resultado primerParteNumerica segundaParteNumerica)
+    )
+  )
+)
+
+(define operacionDiferente
+  (lambda (exp1 exp2)
+    (cond
+    [(and (number? exp1) (number? exp2)) (not (= exp1 exp2))] ;Numeros y flotantes
+    [(contiene-caracter? exp1 #\b) (esDiferente (list exp1 exp2) 1 2) ] ;Binarios
+    [(contiene-caracter? exp1 #\h) (esDiferente (list exp1 exp2) 2 16) ] ;Hexadecimales
+    [(contiene-caracter? exp1 #\x) (esDiferente (list exp1 exp2) 2 8) ] ;Hexadecimales
+    [else eopl:error "Error en el modulo"]
+    )
+  )
+)
+
+(define esDiferente
+  (lambda (args index base)
+    (let*
+      (
+        (primerParteNumerica (convertir-base (cadr ((splitString (car args)) index)) base))
+        (segundaParteNumerica (convertir-base (cadr ((splitString (cadr args)) index)) base))
+        (diferente (lambda ()
+          (if
+            (not (= primerParteNumerica segundaParteNumerica)) #true #false
+          ))
+        )
+      )
+      (diferente)
+    )
+  )
+)
+
+(define eval-primitiva-bool
+  (lambda (prim listExp)
+    (eval-bool prim (map (lambda (x) (eval-expression x)) listExp))
+  )
+)
+(define eval-bool
+  (lambda (prim args)
+    (cases primitivaBooleana prim
+      (and-prim () (primitivaAnd args))
+      (or-prim () (primitivaOr args))
+      (xor-prim () (primitivaXOR args))
+      (not-prim () (list args))
+    )
+  )
+)
+
+(define primitivaAnd
+  (lambda (lst)
+    (cond
+      [(null? lst) #t]
+      [(eq? #f (car lst)) #f]
+      [else (primitivaAnd (cdr lst))]
+      )
+    )
+)
+
+(define primitivaOr
+  (lambda (lst)
+    (cond
+      [(null? lst) #f]
+      [(eq? #t (car lst)) #t]
+      [else (primitivaOr (cdr lst))]
+      )
+    )
+)
+
+(define (primitivaXOR lst)
+  (cond
+    [(null? lst) #f]  ; Si la lista está vacía, devuelve #f
+    [(null? (cdr lst)) #f] ; Si la lista tiene un solo elemento, devuelve #f
+    [(eq? (car lst) (cadr lst)) (primitivaXOR (cdr lst))] ; Si los dos primeros son iguales, sigue con el resto
+    [else #t] ; Si encuentra dos elementos diferentes, devuelve #t
+  )
+) 
+
+(define eval-primitiva-list
+  (lambda (prim listExp)
+    (eval-list prim (map (lambda (x) (eval-expression x)) listExp))
+  )
+)
+(define eval-list
+  (lambda (prim args)
+    (cases primitivaListas prim
+      (first-primList () args)
+      ;(rest-primList () (list (cdr args)))
+      ;(empty-primList () (list (null? args)))
+      (else 0)
+    )
+  )
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 (define eval-if-exp
   (lambda (exp1 exp2 exp3)
@@ -544,23 +542,20 @@
   )
 )
 
-(define eval-bool-expresion
-  (lambda(exp)
-    (cases bool-expresion exp
-      (true-exp () #t)
-      (false-exp () #f)
-    )
-  )
-)
+
 
 
 ;El Interpretador (FrontEnd + Evaluación + señal para lectura +
 (define interpretador
-  (sllgen:make-rep-loop "--> "
-    evaluar-programa
-    (sllgen:make-stream-parser 
-      lexica
-      gramatica)))
+  (sllgen:make-rep-loop "Proyecto --> "
+          (lambda (pgm) (evaluar-programa pgm))
+          (sllgen:make-stream-parser 
+            lexica
+            gramatica
+          )
+  )
+)
 
 (interpretador)
+(provide (all-defined-out))
 
