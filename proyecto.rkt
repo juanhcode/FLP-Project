@@ -197,7 +197,7 @@
       (bool-exp (bool-expresion) (eval-bool-expresion bool-expresion))
       (var-exp (identificador) identificador)
       (num-exp (numero-exp) (eval-num-exp numero-exp))
-      (cadena-exp (id a) (list id a))
+      (cadena-exp (id a) (list-to-string (list id a)))
       (decl-exp (var-decl) (eval-var-decl var-decl))
       (lista-exp (listExp) (eval-rands listExp))
       (cons-exp (exp1 exp2) (list (eval-expression exp1) (eval-expression exp2)))
@@ -224,6 +224,14 @@
     )
   )
 )
+;cadena
+(define list-to-string
+  (lambda (list)
+  (cond
+    ((null? list) "")
+    ((symbol? (car list)) (string-append (symbol->string (car list)) " " (list-to-string (cdr list))))
+    (else (string-append (list-to-string (car list)) " " (list-to-string (cdr list)))))))
+
 ;bool-exp --> funcion que evalua una expresion booleana y retorna su valor
 (define eval-bool-expresion
   (lambda(exp)
@@ -469,7 +477,7 @@
       (and-prim () (primitivaAnd args))
       (or-prim () (primitivaOr args))
       (xor-prim () (primitivaXOR args))
-      (not-prim () (list args))
+      (not-prim () (map not args))
     )
   )
 )
@@ -518,19 +526,6 @@
     )
   )
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 (define eval-if-exp
