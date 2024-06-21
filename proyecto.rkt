@@ -165,6 +165,17 @@
 (define just-scan
   (sllgen:make-string-scanner lexica gramatica))
 
+(define init-env
+  (lambda ()
+    (extend-env
+     '(i v x)
+     '(1 5 10)
+     (empty-env))))
+
+(define extend-env
+  (lambda (syms vals env)
+    (extended-env-record syms (list->vector vals) env)))
+
 
 ;Funcion que esta en el interpretador
 (define evaluar-programa
@@ -173,7 +184,7 @@
       (a-programa (expresion listaExpresion)
         (cond
           [(null? listaExpresion) (eval-expression expresion)]
-          [else (eval-expression listaExpresion)]
+          [else (eval-expression listaExpresion (init-env))]
         )
       )
     )
@@ -188,24 +199,38 @@
   (lambda (v) (set! v v))
 )
 
+;definición del tipo de dato ambiente
+(define-datatype environment environment?
+  (empty-env-record)
+  (extended-env-record
+   (syms (list-of symbol?))
+   (vec vector?)
+   (env environment?)))
+
+;empty-env:      -> enviroment
+;función que crea un ambiente vacío
+(define empty-env  
+  (lambda ()
+    (empty-env-record)))       ;llamado al constructor de ambiente vacío 
+
 
 ;Funcion que evalua una expresion de la gramatica
 (define eval-expression
-  (lambda(exp)
+  (lambda (exp env)
     (cases expresion exp
       ;Expresiones
       (bool-exp (bool-expresion) (eval-bool-expresion bool-expresion))
-      (var-exp (identificador) identificador)
+      (var-exp (identificador) (apply-env env identificador))
       (num-exp (numero-exp) (eval-num-exp numero-exp))
       (cadena-exp (id a) (list-to-string (list id a)))
-      (decl-exp (var-decl) (eval-var-decl var-decl))
-      (lista-exp (listExp) (eval-rands listExp))
-      (cons-exp (exp1 exp2) (list (eval-expression exp1) (eval-expression exp2)))
+      (decl-exp (var-decl) (eval-var-decl var-decl env))
+      (lista-exp (listExp) (eval-rands listExp env))
+      (cons-exp (exp1 exp2) (list (eval-expression exp1 env) (eval-expression exp2 env)))
       (empty-list-exp () '())
       (array-exp (expresion) (list (eval-expression expresion)))
-      (prim-num-exp (exp1 prim exp2) (eval-primitiva-num exp1 prim exp2))
-      (prim-bool-exp (prim listExp) (eval-primitiva-bool prim listExp))
-      ;(prim-list-exp (primList exp) (eval-primitiva-list primList exp))
+      (prim-num-exp (exp1 prim exp2) (eval-primitiva-num exp1 prim exp2 env))
+      (prim-bool-exp (prim listExp) (eval-primitiva-bool prim listExp env))
+      (prim-list-exp (primList exp) (eval-primitiva-list primList exp env))
       ;(prim-array-exp (exp a) (eval-primitiva-array exp))
       ;(prim-cad-exp (exp a) (eval-primitiva-cadena exp))
       ;(if-exp (exp1 exp2 exp3) (eval-if-exp exp1 exp2 exp3))
@@ -260,40 +285,36 @@
 
 ;decl-exp --> funcion que evalua una expresion de declaracion y retorna su valor
 (define eval-var-decl
-  (lambda (var)
+  (lambda (var env)
     (cases var-decl var
       (lvar-exp (ids rands body) 0)
-      (let-exp (ids rands body) (eval-lvar-exp ids rands body))
-    )
-  )
-)
-
-(define eval-lvar-exp
-  (lambda (ids rands body)
-    (let
-      (
-        (args (eval-rands rands))
+      (let-exp (ids rands body)
+                (let
+                  (
+                    (args (eval-rands rands env))
+                  )
+                  (eval-expression body (extend-env ids args env))
+                )
       )
-      (eval-expression body)
     )
   )
 )
 
 (define eval-rands
-  (lambda (rands)
-    (map (lambda (x) (eval-rand x )) rands)))
+  (lambda (rands env)
+    (map (lambda (x) (eval-rand x env)) rands)))
 
 (define eval-rand
-  (lambda (rand )
-    (eval-expression rand)))
+  (lambda (rand env)
+    (eval-expression rand env)))
 ;********************************************************************************************************************
 
 ;Primitiva Numerica
 ;prim-num-exp --> funcion que evalua una primitiva numerica y retorna su valor
 
 (define eval-primitiva-num
-  (lambda (exp1 prim exp2)
-    (eval-primitive prim (eval-expression exp1) (eval-expression exp2))
+  (lambda (exp1 prim exp2 env)
+    (eval-primitive prim (eval-expression exp1 env) (eval-expression exp2 env))
   )
 )
 ;(baseSuma args +)
@@ -467,8 +488,8 @@
 )
 
 (define eval-primitiva-bool
-  (lambda (prim listExp)
-    (eval-bool prim (map (lambda (x) (eval-expression x)) listExp))
+  (lambda (prim listExp env)
+    (eval-bool prim (map (lambda (x) (eval-expression x env)) listExp))
   )
 )
 (define eval-bool
@@ -512,21 +533,69 @@
 ) 
 
 (define eval-primitiva-list
-  (lambda (prim listExp)
-    (eval-list prim (map (lambda (x) (eval-expression x)) listExp))
+  (lambda (prim listExp env)
+    ;(map (lambda (x) (eval-list x env)) prim)
+    ;list prim listExp)
+    (eval-list (car prim))
   )
 )
 (define eval-list
-  (lambda (prim args)
+  (lambda (prim)
     (cases primitivaListas prim
-      (first-primList () args)
-      ;(rest-primList () (list (cdr args)))
-      ;(empty-primList () (list (null? args)))
-      (else 0)
+      (first-primList () (car prim))
+      (rest-primList () (cdr prim))
+      (empty-primList () '())
     )
   )
 )
 
+(define apply-env
+  (lambda (env sym)
+    (deref (apply-env-ref env sym))))
+     ;(apply-env-ref env sym)))
+    ;env))
+(define apply-env-ref
+  (lambda (env sym)
+    (cases environment env
+      (empty-env-record ()
+                        (eopl:error 'apply-env-ref "No binding for ~s" sym))
+      (extended-env-record (syms vals env)
+                           (let ((pos (rib-find-position sym syms)))
+                             (if (number? pos)
+                                 (a-ref pos vals)
+                                 (apply-env-ref env sym)))))))
+
+(define deref
+  (lambda (ref)
+    (primitive-deref ref)))
+    
+(define rib-find-position 
+  (lambda (sym los)
+    (list-find-position sym los)))
+
+(define list-find-position
+  (lambda (sym los)
+    (list-index (lambda (sym1) (eqv? sym1 sym)) los)))
+
+(define list-index
+  (lambda (pred ls)
+    (cond
+      ((null? ls) #f)
+      ((pred (car ls)) 0)
+      (else (let ((list-index-r (list-index pred (cdr ls))))
+              (if (number? list-index-r)
+                (+ list-index-r 1)
+                #f))))))
+
+(define-datatype reference reference?
+  (a-ref (position integer?)
+         (vec vector?)))
+
+(define primitive-deref
+  (lambda (ref)
+    (cases reference ref
+      (a-ref (pos vec)
+             (vector-ref vec pos)))))
 
 (define eval-if-exp
   (lambda (exp1 exp2 exp3)
